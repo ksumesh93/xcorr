@@ -8,11 +8,12 @@
 #include <algorithm>
 using namespace std;
 
+int spectra_written = 0;
 
 int extractMS2(const char* infile, const char* outfile)
 {
 	value_pair* spect_inst;
-	remember* rem_inst;
+	remember* rem_inst = NULL;
 	ofstream sparse;
 	string line;
 	bool start_reading = 0;
@@ -26,17 +27,6 @@ int extractMS2(const char* infile, const char* outfile)
 	ifstream MS2file;
 	ofstream memory;
 
-
-
-	rem_inst = new remember;
-	rem_inst->oldval = 0;
-	rem_inst->values_written = 0;
-	//Create an array of all zeros which hold the maximum of each bin
-	for (int i = 0; i < 10; i++)
-	{
-		rem_inst->max[i] = 0;
-	}
-
 	//memory.open("memory.bin", ios::out);
 	sparse.open(outfile, ios::out);
 
@@ -48,12 +38,29 @@ int extractMS2(const char* infile, const char* outfile)
 		if (line.compare(0, 1, "Z") == 0)
 		{
 			start_reading = 1;
+			rem_inst = new remember;
+			rem_inst->oldval = 0;
+			rem_inst->values_written = 0;
+			n1 = line.find("\t");
+			rem_inst->charge_state = stof(line.substr(n1 + 1, 1));
+			rem_inst->precursor_mass = stof(line.substr(n1+2, line.length()-n1-2));
+			//Create an array of all zeros which hold the maximum of each bin
+			for (int i = 0; i < 10; i++)
+			{
+				rem_inst->max[i] = 0;
+			}
 		}
 		//Stop reading
 		else if (line.compare(0, 1, "S") == 0 && start_reading)
 		{
 			start_reading = 0;
-			break;
+			cout << line << endl;
+			if (rem_inst != NULL)
+			{
+				write_sparse(rem_inst, 2032, 0, sparse);
+				write_header(rem_inst, sparse);
+				delete rem_inst;
+			}
 		}
 		else if (start_reading)
 		{
@@ -70,15 +77,17 @@ int extractMS2(const char* infile, const char* outfile)
 			write_sparse(rem_inst, spect_inst->mz_value, spect_inst->inten_value, sparse);
 
 			//Print the values
-			cout << "m/z: " << std::hex << spect_inst->mz_value << ", intensity: " << spect_inst->mz_value << endl;
-			//mem_block = (char*)(spect_inst);
-			/*From this point, write the float values to file*/
-			//write_to_file = float_hex(mass_z);
-			//memory << write_to_file;
-			//write_to_file = float_hex(intensity);
-			//memory << write_to_file;
-			//memory.write(mem_block, sizeof(value_pair));
+			//cout << "m/z: " << std::hex << spect_inst->mz_value << ", intensity: " << spect_inst->mz_value << endl;
+
+			//Delete one instance 
+			delete spect_inst;
 		}
+	}
+	if (rem_inst != NULL)
+	{
+		write_sparse(rem_inst, LENGTH_OF_SPECTRUM-16, 0, sparse);
+		write_header(rem_inst, sparse);
+		delete rem_inst;
 	}
 	MS2file.close();
 	memory.close();
@@ -116,32 +125,60 @@ int write_sparse(remember* inst, float m, float i, std::ofstream &sparse)
 	old = (int)inst->oldval;
 	val_num = ((int)m) - old - 1;
 
-	for (int i = 0; i < val_num; i++)
+	if (val_num > -1)
 	{
-		write_to_file = float_hex(0);
+		for (int i = 0; i < val_num; i++)
+		{
+			write_to_file = float_hex(0);
+			sparse << write_to_file;
+			val_written++;
+			if (((VALUES_PER_LINE)+val_written) % (VALUES_PER_LINE) == 0)
+			{
+				sparse << endl;
+			}
+		}
+		write_to_file = float_hex((float)sqrt(i));
 		sparse << write_to_file;
 		val_written++;
 		if (((VALUES_PER_LINE)+val_written) % (VALUES_PER_LINE) == 0)
 		{
 			sparse << endl;
 		}
-	}
-	write_to_file = float_hex((float)sqrt(i));
-	sparse << write_to_file;
-	val_written++;
-	if (((VALUES_PER_LINE)+val_written) % (VALUES_PER_LINE) == 0)
-	{
-		sparse << endl;
-	}
 
-	inst->oldval = m;
-	inst->values_written = val_written;
-	bin = ((int)m) / (LENGTH_OF_SPECTRUM / 10);
-	if (inst->max[bin] < (float)sqrt(i))
-	{
-		inst->max[bin] = (float)sqrt(i);
+		inst->oldval = m;
+		inst->values_written = val_written;
+		bin = ((int)m) / (LENGTH_OF_SPECTRUM / 10);
+		if (inst->max[bin] < (float)sqrt(i))
+		{
+			inst->max[bin] = (float)sqrt(i);
+		}
+		sparse.flush();
 	}
+	return 0;
+}
 
+int write_header(remember* inst, std::ofstream& sparse)
+{
+	string temp;
+	const char *message = "SPECTRUM";
+	temp = float_hex(*((float*)(message)));
+	sparse << temp;
+	temp = float_hex(*((float*)(message+4)));
+	sparse << temp;
+	temp = float_hex(inst->precursor_mass);
+	sparse << temp;
+	temp = float_hex(inst->charge_state);
+	sparse << temp;
+	temp = float_hex((float)spectra_written * LENGTH_OF_SPECTRUM * 4);
+	sparse << temp;
+	for (int i = 0; i < 10; i++)
+	{
+		temp = float_hex(inst->max[i]);
+		sparse << temp;
+	}
+	temp = float_hex(0);
+	sparse << temp;
+	sparse << endl;
 	return 0;
 }
 
@@ -176,7 +213,7 @@ int extractFasta()
 		getline(ss, line, '\t');
 		getline(ss, precursor, '\t');
 		precursor_mass = stof(precursor);
-		cout << line << "\t" << precursor_mass << endl;
+		//cout << line << "\t" << precursor_mass << endl;
 		int n = 2* (line.length());
 		m_z = new float[n];
 		ind = -2;
@@ -191,7 +228,7 @@ int extractFasta()
 			else
 				m_z[ind] = btype + 1;
 			m_z[ind + 1] = precursor_mass - m_z[ind] + 1;
-			cout << m_z[ind] << "\t" << m_z[ind + 1] << endl;
+			//cout << m_z[ind] << "\t" << m_z[ind + 1] << endl;
 		}
 		sort(m_z, m_z + n);
 

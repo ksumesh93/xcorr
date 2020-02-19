@@ -11,11 +11,14 @@ struct value_pair {
 struct remember{
 	float oldval;
 	float max[10];
+	float precursor_mass;
+	float charge_state;
 	int values_written;
 };
 int extractMS2(const char* infile, const char* outfile);
 int extractFasta();
 int write_sparse(remember *inst, float m, float i, std::ofstream &sparse);
+int write_header(remember* inst, std::ofstream& sparse);
 std::string float_hex(float number);
 
 const float amino[] = {
