@@ -6,9 +6,16 @@
 #include <string>
 #include <cmath>
 #include <algorithm>
+#include <vector>
 using namespace std;
 
 int spectra_written = 0;
+
+std::istream& operator>>(std::istream& is, peptide& s)
+{
+	return is >> s.peptide_seq >> s.precursor_mass >> s.protein_id;
+}
+
 
 int extractMS2(const char* infile, const char* outfile)
 {
@@ -185,6 +192,8 @@ int write_header(remember* inst, std::ofstream& sparse)
 int extractFasta()
 {
 	ifstream t_pept;
+	ifstream p_pept;
+	ofstream s_pept;
 	ofstream theoretical;
 	string line;
 	string precursor;
@@ -204,7 +213,14 @@ int extractFasta()
 	//Move the generated file into current directory
 	system("move /y .\\crux-output\\generate-peptides.target.txt peptides.txt");
 
-	t_pept.open("peptides.txt");
+	p_pept.open("peptides.txt");
+	s_pept.open("sorted_peptides.txt");
+
+	sort_peptides(p_pept, s_pept);
+	s_pept.close();
+	p_pept.close();
+	t_pept.open("sorted_peptides.txt");
+
 	theoretical.open("theoretical.ms2");
 
 	while (getline(t_pept, line))
@@ -246,5 +262,23 @@ int extractFasta()
 		delete[] m_z;
 	}
 
+	return 0;
+}
+
+int sort_peptides(std::ifstream& pept, std::ofstream& sort_pept)
+{
+	vector<peptide> peptides;
+	peptide pep;
+
+	while (pept >> pep)
+	{
+		pep.pre_mass = stof(pep.precursor_mass);
+		peptides.push_back(pep);
+	}
+	std::sort(peptides.begin(), peptides.end(), [](const peptide& s1, const peptide& s2) { return s1.pre_mass < s2.pre_mass; });
+	for(std::vector<peptide>::iterator it = peptides.begin(); it != peptides.end(); ++it)
+	{
+		sort_pept << it->peptide_seq << "\t" << it->precursor_mass << "\t" << it->protein_id << endl;
+	}
 	return 0;
 }

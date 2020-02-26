@@ -8,6 +8,14 @@ struct value_pair {
 	float inten_value;
 };
 
+struct peptide
+{
+	std::string peptide_seq;
+	std::string precursor_mass;
+	std::string protein_id;
+	float pre_mass;
+};
+
 struct remember{
 	float oldval;
 	float max[10];
@@ -19,6 +27,7 @@ int extractMS2(const char* infile, const char* outfile);
 int extractFasta();
 int write_sparse(remember *inst, float m, float i, std::ofstream &sparse);
 int write_header(remember* inst, std::ofstream& sparse);
+int sort_peptides(std::ifstream& pept, std::ofstream& sort_pept);
 std::string float_hex(float number);
 
 const float amino[] = {
@@ -48,5 +57,6 @@ const float amino[] = {
 		0.0F,
 		163.06F,
 		0.0F};
+
 
 #endif
