@@ -29,9 +29,11 @@ package package_xcorr is
   
   type spectrum_header is record
     scan_number : unsigned(31 downto 0); --4 bytes
-    precursor_mass : unsigned(31 downto 0);
-    status : unsigned(7 downto 0);
-    zero_fill : unsigned(439 downto 0);
+    precursor_mass : unsigned(31 downto 0); --4 bytes
+    status : unsigned(7 downto 0); -- 1 bytes
+    spectrum_start_address : unsigned(31 downto 0); --4 bytes
+    spectrum_end_address : unsigned(31 downto 0); -- 4 bytes
+    zero_fill : unsigned(375 downto 0);
   end record spectrum_header;
   
   function ppacket_to_vector(pep_packet : peptide_packet)
@@ -84,7 +86,9 @@ package body package_xcorr is
         vectored_packet(511 downto 480) := std_logic_vector(spec_head.scan_number); 
         vectored_packet(479 downto 448) := std_logic_vector(spec_head.precursor_mass); 
         vectored_packet(447 downto 440) := std_logic_vector(spec_head.status); 
-        vectored_packet(439 downto 0) := std_logic_vector(spec_head.zero_fill); 
+        vectored_packet(439 downto 408) := std_logic_vector(spec_head.spectrum_start_address);
+        vectored_packet(407 downto 376) := std_logic_vector(spec_head.spectrum_end_address);
+        vectored_packet(375 downto 0) := std_logic_vector(spec_head.zero_fill); 
         return vectored_packet;
     end function shead_to_vector;
     
@@ -125,8 +129,10 @@ package body package_xcorr is
     begin
         spec_head.scan_number := unsigned(vectored_packet(511 downto 480));
         spec_head.precursor_mass := unsigned(vectored_packet(479 downto 448)); 
-        spec_head.status := unsigned(vectored_packet(447 downto 440));  
-        spec_head.zero_fill := unsigned(vectored_packet(439 downto 0));
+        spec_head.status := unsigned(vectored_packet(447 downto 440)); 
+        spec_head.spectrum_start_address := unsigned(vectored_packet(439 downto 408));
+        spec_head.spectrum_end_address := unsigned(vectored_packet(407 downto 376)); 
+        spec_head.zero_fill := unsigned(vectored_packet(375 downto 0)); 
         return spec_head;
     end function vector_to_shead;
     
