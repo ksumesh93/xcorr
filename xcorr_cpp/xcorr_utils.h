@@ -7,6 +7,6 @@
 #include "spectrum.h"
 
 std::vector<std::string> tokenize(std::string str, char delimiter); 
-std::vector<spectrum> create_index(const char *path);
+std::vector<spectrum> create_index(const char *path, const char *bin_path);
 
 #endif
