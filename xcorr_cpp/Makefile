@@ -1,4 +1,4 @@
-TARGET = xcorr
+TARGET = xcorr.bin
 
 CC=g++
 CFLAGS= -Wall -ggdb -I.

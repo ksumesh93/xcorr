@@ -64,7 +64,9 @@ std::vector<spectrum> create_index(const char *path, const char *bin_path){
                 if(start_spectrum){
                     spec->set_length(count);
 
+                    // Later on we convert this loop to a memcpy as well, but let it be for a while
                     for(unsigned int i=0; i<count; i++){
+                        // Selecting the address inside the 4KB buffer to write to
                         int* value = (int*)(data + i*8);
                         *value = mz.front();
                         value = (int*)(data + i*8 + 4);
@@ -73,6 +75,7 @@ std::vector<spectrum> create_index(const char *path, const char *bin_path){
                         byte_cur += 8;
                         in_page += 8;
 
+                        // Check if we have reached the end of the buffer
                         if(in_page % 4096 == 0){
                             // Add another page into the file
                             posix_fallocate(fd, byte_cur, 4096);      
