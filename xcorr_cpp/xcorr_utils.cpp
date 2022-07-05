@@ -67,10 +67,13 @@ std::vector<spectrum> create_index(const char *path, const char *bin_path){
                     // Later on we convert this loop to a memcpy as well, but let it be for a while
                     for(unsigned int i=0; i<count; i++){
                         // Selecting the address inside the 4KB buffer to write to
-                        int* value = (int*)(data + i*8);
+                        int* value = (int*)(data + in_page);
                         *value = mz.front();
-                        value = (int*)(data + i*8 + 4);
+                        mz.pop_front();
+                        value = (int*)(data + in_page + 4);
                         *value = intensity.front();
+                        intensity.pop_front();
+                            
 
                         byte_cur += 8;
                         in_page += 8;
@@ -84,16 +87,19 @@ std::vector<spectrum> create_index(const char *path, const char *bin_path){
                             //Mapping to the extended buffer
                             data = (char *)mmap(NULL, 4*1024, PROT_READ | PROT_WRITE, MAP_SHARED, fd, byte_cur);
                             // Adjust the index
-                            count -= i-1;
+                            count -= i+1;
                             i = -1;
                             in_page = 0;
                         }
                     }
                     spec->set_end(byte_cur);
-                    //spec->set_end(byte_cur - (line.length() + 1));
+
                     spec_index.push_back(*spec);
                     count = 0;
                 }
+
+                mz.clear();
+                intensity.clear();
                 words = tokenize(line, '\t');
                 
                 spec = new spectrum;
@@ -123,9 +129,67 @@ std::vector<spectrum> create_index(const char *path, const char *bin_path){
                 count++;
             }
         }
+        spec->set_length(count);
+
+        // Later on we convert this loop to a memcpy as well, but let it be for a while
+        for(unsigned int i=0; i<count; i++){
+            // Selecting the address inside the 4KB buffer to write to
+            int* value = (int*)(data + i*8);
+            *value = mz.front();
+            
+            mz.pop_front();
+            value = (int*)(data + i*8 + 4);
+            *value = intensity.front();
+            intensity.pop_front();
+
+            byte_cur += 8;
+            in_page += 8;
+
+            // Check if we have reached the end of the buffer
+            if(in_page % 4096 == 0){
+                // Add another page into the file
+                posix_fallocate(fd, byte_cur, 4096);      
+                //Unmap the current page 
+                munmap(data, 4096);
+                //Mapping to the extended buffer
+                data = (char *)mmap(NULL, 4*1024, PROT_READ | PROT_WRITE, MAP_SHARED, fd, byte_cur);
+                // Adjust the index
+                count -= i+1;
+                i = -1;
+                in_page = 0;
+            }
+        }
+        mz.clear();
+        intensity.clear();
+        spec->set_end(byte_cur);
+
         spec_index.push_back(*spec);
         spectra_fptr.close();
     }
 
     return spec_index;
+}
+
+
+///////////////////////////////////////////////////////
+/// CREATING A FUNCTION TO MAP RANDOM REGION //////////
+///////////////////////////////////////////////////////
+char* map_random(const char *path, int byte_start, int byte_end, int *size_u){
+    char *data = NULL;
+    // Open the file for writing
+    int fd = open(path, O_RDONLY);
+
+    //Find the starting and ending boundary of the page
+    int b_start = byte_start - (byte_start % 4096);
+    int b_end = byte_end + (4096 - (byte_end % 4096));
+    int size = b_end - b_start;
+    std::cout << byte_start << "," << b_start << std::endl;
+    std::cout << byte_end << "," << b_end << std::endl;
+
+
+    //Mapping to a buffer of size 4KB
+    data = (char *)mmap(NULL, size, PROT_READ, MAP_SHARED, fd, b_start);
+    *size_u = size; 
+
+    return data;
 }
