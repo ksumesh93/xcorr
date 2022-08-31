@@ -1,22 +1,30 @@
 #include <iostream>
+#include <cstdio>
 #include <vector>
 #include <fstream>
+#include <thread> 
 #include <string.h>
 #include <cstdlib>
 #include <fcntl.h>
 #include <sys/mman.h>
+#include <atomic>
+#include <unistd.h>
+#include <mutex>
+#include <cmath>
+#include <tuple>
 #include "xcorr.h"
 #include "mappedfile.h"
 #include "spectrum.h"
 #include "xcorr_utils.h"
 
+
+
+
+
 int main(int argc, char **argv){
 
-    char *data;
-    int offset {0};
-    float mzf, intenf;
-    int *mz, *inten;
-    int size;
+    std::vector<std::thread> threads;
+    int fd_read, fd_write;
 
     /* Check for number of arguments */
     if(argc < 3){
@@ -29,45 +37,16 @@ int main(int argc, char **argv){
 
     std::cout << spec_index.size() << std::endl;
     //for(unsigned int i = 0; i < spec_index.size(); i++){
-    for(unsigned int i = 0; i < 3; i++){
-        std::cout << "ID: " << spec_index[i].get_id() << ", Mass: " << spec_index[i].get_mass() << ", Charge: " 
-        << spec_index[i].get_charge() << ", Start: " << spec_index[i].get_start() << ", End: " << spec_index[i].get_end() << std::endl;
+    fd_read = open("binary_spectra.bin", O_RDONLY);
+    fd_write = open("processed.ms2", O_CREAT|O_RDWR, S_IRUSR|S_IWUSR);
+    for(unsigned int i = 0; i < 44; i++){
+        threads.push_back(std::thread(process_spectra, spec_index, &fd_read, &fd_write, XCORR, i));
+    } 
 
-        data = map_random("binary_spectra.bin", spec_index[i].get_start(), spec_index[i].get_end(), &size);
-        offset = spec_index[i].get_start() % 4096;
-        
-        for(int x = 0; x < spec_index[i].get_length() ; x++){
-            mz = (int*)(data + (x*8));
-            inten = (int*)(data + (x*8) + 4);
-            mzf = ((float)(*mz))/65536;
-            intenf = ((float)(*inten))/65536;
-            std::cout << x << ":" << mzf << "," << intenf << std::endl;
-        }
-        unmap_file(data, size);
-    }
+    std::cout << "synchronizing all threads...\n";
+    for (auto& th : threads) th.join();
+    close(fd_read);
 
-
-
-
-
-    // std::fstream exfile; 
-    // exfile.open("textex", std::ios::out);
-    // for(int i=0; i<8192; i++){
-    //     if((i+1) % 256 == 0)
-    //         exfile << std::endl;
-    //     else
-    //         exfile << i+1 << ",";
-    // }
-
-
-
-    //mapped_file map("textex"); // maps the file into memory
-
-	// write size bytes from the mapped memory to cout
-    //std::cout << map.length() << std::endl;
-    //memset((void*)*map, 44,  map.length());
-	//std::cout.write(*map, map.length());
-    //std::cout << std::endl;
 
     return STATUS_SUCCESS;
 }
